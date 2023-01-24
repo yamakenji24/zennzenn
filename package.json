@@ -1,0 +1,21 @@
+{
+  "name": "zennzenn",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "new:article": "zenn new:article --slug"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yamakenji24/zennzenn.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/yamakenji24/zennzenn/issues"
+  },
+  "homepage": "https://github.com/yamakenji24/zennzenn#readme",
+  "dependencies": {
+    "zenn-cli": "^0.1.137"
+  }
+}
