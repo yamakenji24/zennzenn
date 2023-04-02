@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "new:article": "zenn new:article --slug"
+    "new:article": "zenn new:article --slug",
+    "preview": "zenn preview"
   },
   "repository": {
     "type": "git",
