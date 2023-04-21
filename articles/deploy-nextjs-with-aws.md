@@ -22,6 +22,8 @@ Terraform を使用して CloudFront、API Gateway、Lambda Container を管理�
 - Route53 を使用したカスタムドメインの設定
 - GitHub Actions と OIDCを使用して自動デプロイ
 
+![](/images/deploy-nextjs-with-aws/diagram.png)
+
 # Terraform や AWS 周りのサービスについて
 
 ## Terraform
