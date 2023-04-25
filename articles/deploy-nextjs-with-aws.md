@@ -245,8 +245,8 @@ resource "aws_cloudfront_distribution" "example_distribution" {
   ...
   // api-gateway
   origin {
-    origin_id   = aws_api_gateway_rest_api.example_next_api.id
-    domain_name = "${aws_api_gateway_rest_api.example_next_api.id}.execute-api.ap-northeast-1.amazonaws.com"
+    origin_id   = aws_api_gateway_rest_api.example_api_gateway.id
+    domain_name = "${aws_api_gateway_rest_api.example_api_gateway.id}.execute-api.ap-northeast-1.amazonaws.com"
     origin_path = "/${aws_api_gateway_stage.example_next_api.stage_name}"
 
     custom_origin_config {
@@ -264,7 +264,7 @@ resource "aws_cloudfront_distribution" "example_distribution" {
 
   default_cache_behavior {
     ...
-    target_origin_id = aws_api_gateway_rest_api.example_next_api.id
+    target_origin_id = aws_api_gateway_rest_api.example_api_gateway.id
     ...
   }
   ...
@@ -321,7 +321,7 @@ data "aws_iam_policy_document" "example_lambda_document" {
 ```
 
 作成する Lambda の ARN を API Gateway の uri に挿入していきます。
-例えばこんな感じで`uri = aws_lambda_function.example_next_repo_function.invoke_arn`
+例えばこんな感じで `aws_lambda_function.example_lambda_repo_function.invoke_arn`
 また、API GatewayからLambdaを実行できる権限を付与します
 ```hcl: api-gateway.tf
 resource "aws_lambda_permission" "example_apigw_lambda" {
@@ -389,6 +389,8 @@ lambda への push
 ```
 aws lambda update-function-code --function-name exampleLambdaRepo --image-uri xxxx.dkr.ecr.ap-northeast-1.amazonaws.com/example_lambda_repo:latest
 ```
+
+ここまでできると、CloudFrontのdistributionドメイン名にアクセスすると、Next.jsのランディングページが表示されると思います！
 
 # Route53 を使用したカスタムドメインの設定
 ここでは、自身で取得したドメインをRoute53で管理し、利用できるようにしてみます。
