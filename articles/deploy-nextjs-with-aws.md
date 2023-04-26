@@ -3,7 +3,7 @@ title: "API GatewayとLambdaでNext.jsをAWSにデプロイする with Terraform
 emoji: "🐡"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["nextjs", "Terraform", "AWS", "Lambda", "apigateway"]
-published: false
+published: true
 ---
 
 # はじめに
