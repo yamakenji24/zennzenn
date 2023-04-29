@@ -3,7 +3,7 @@ title: "React Hook FormとZodを使ったフォームのバリデーションと
 emoji: "🍕"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["reacthookform", "zod", "react", "test", "storybook"]
-published: false
+published: true
 ---
 
 # はじめに
