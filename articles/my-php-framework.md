@@ -3,7 +3,8 @@ title: "FEエンジニアがPHPでRoutingとDiコンテナを触ってみた"
 emoji: "🍕"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["PHP", "php8", "フレームワーク", "DIコンテナ"]
-published: false
+published: true
+published_at: 2024-02-13 09:00
 ---
 
 # はじめに
@@ -173,7 +174,6 @@ class Router
 }
 ```
 
-
 実際にマッピングの登録を行うのは、`api.php`で定義しています。
 例えば、GET /api/sample というルーティングは以下のようになります。
 ```php: src/Routes/api.php
@@ -205,6 +205,156 @@ require __DIR__ . '/../vendor/autoload.php';
 call_user_func(require_once __DIR__ . '/../src/Routes/api.php');
 ```
 
+handlerには、`ApiController::class`で渡した`名前空間とクラス名`が取得されています。
+このままでは実行ができないので、`is_string($handler) && class_exists($handler)`で、このhandlerが文字列でありクラスが存在すると判定できた場合に、`new $handler()`でインスタンスを生成し実行しています。
+
 # Diコンテナの実装
+## DIコンテナとは
+DI(Dependency Injection)とは、その名の通り依存性注入であり、同じinterfaceを参照していれば別のオブジェクトを外部から参照することが可能といったものです。
+DIコンテナは、依存性注入を行うためのオブジェクトやリソースの生成・管理を一元化するための手法です。DIコンテナを使用することで、オブジェクトの生成場所が明確になり、依存関係が容易に把握できます。
+DIすることで、テスト時にモックを簡単に注入できるため、テストの柔軟性が向上し、リファクタリング時に旧コードへの依存関係を管理しやすくなるなどがあります。
+詳しくは、以下の記事が参考になります。
+https://qiita.com/ritukiii/items/de30b2d944109521298f
+
+## PSR
+実装をする前に、PSRに触れておきたいと思います。
+PSR(PHP Standards Recommendations)とは、PHP-FIG(The PHP Framework Interop Group)が策定しているPHPの規約です。
+https://www.php-fig.org/psr/
+PSRを定めることによってフレームワークやライブラリ間での相互連携を可能とし、PHP(とそのエコスシステム)を発展させるために存在しています。
+なお、必ずしも守る必要はなく、他のフレームワークやライブラリも準拠していることもあるから互換性の高いコードが書けるかもね ぐらいのニュアンスだそうです。
+
+今回DIコンテナを実装するにあたって、[PSR-11 Container Interface](https://www.php-fig.org/psr/psr-11/)に準拠するように実装しています。
+
+## DIコンテナの実装
+`Container->get`メソッドの$idには名前空間付きクラス名が渡される想定であり、指定されたidに対応するserviceを返します。
+servicesには生成済みのサービスがキャッシュされ、factoriesにはサービスを生成するためのファクトリ関数が保持されます。argumentsは、各サービスのコンストラクタ引数を保持し、サービスが生成される際に使用されます。
+
+```php: src/Container/Container.php
+<?php declare(strict_types=1);
+
+namespace App\Container;
+
+use Psr\Container\ContainerInterface;
+use Psr\Container\ContainerExceptionInterface;
+use Psr\Container\NotFoundExceptionInterface;
+
+class Container implements ContainerInterface
+{
+    private mixed $services = [];
+    private mixed $factories = [];
+    private mixed $arguments = [];
+    private ?string $currentServiceId = null;
+
+
+    public function get($id)
+    {
+        if (!$this->has($id)) {
+            throw new class("Service not found: $id") extends \Exception implements NotFoundExceptionInterface {};
+        }
+
+        if (!isset($this->services[$id]) && isset($this->factories[$id])) {
+            $this->services[$id] = $this->factories[$id]($this->arguments[$id] ?? []);
+        }
+
+        return $this->services[$id];
+    }
+
+    public function has($id): bool
+    {
+        return isset($this->services[$id]) || isset($this->factories[$id]);
+    }
+
+    public function add(string $id): self
+    {
+        if ($this->has($id)) {
+            throw new class("Service already exists: $id") extends \Exception implements ContainerExceptionInterface {};
+        }
+        $this->currentServiceId = $id;
+        $this->factories[$id] = fn() => new $id(...array_map(fn($arg) => $this->get($arg), $this->arguments[$id] ?? []));
+        return $this;
+    }
+    public function addArgument(string $argument): self
+    {
+        if ($this->currentServiceId === null) {
+            throw new \LogicException('No service is being defined. Call add() before calling addArgument().');
+        }
+        $this->arguments[$this->currentServiceId][] = $argument;
+        return $this;
+    }
+}
+```
+
+作成したコンテナをRouterと繋いでいきます。
+constructorでServiceProviderによる依存関係の登録を行なっています。
+container->getにより、実行可能なインスタンスが取得できるようになったため、一部実装も対応するように修正します。
+
+```php: src/Routes/Router.php
+...
+use App\Container\Container;
+
+class Router
+{
+    ...    
+    public function __construct(private Container $container)
+    {
+        $this->addServiceProvider();
+    }
+    ...
+
+    public function resolve(ServerRequestInterface $request): ResponseInterface {
+        $method = $request->getMethod();
+        $route = $request->getUri()->getPath();
+
+        $handler = $this->routes[$method][$route] ?? null;
+
+        if ($handler) {
+            if (is_string($handler)) {
+                $handler = $this->container->get($handler);
+            }
+            return $handler($request);
+        } else {
+            return new Response(404, [], 'Not found');
+        }
+    }
+
+    private function addServiceProvider(): void {
+        $serviceProvider = new ServiceProvider($this->container);
+        $serviceProvider->register();
+    }
+}
+```
+
+```php: src/Container/ServiceProvider.php
+<?php declare(strict_types=1);
+
+namespace App\Container;
+
+use App\Container\Container;
+use App\Controller\ApiController;
+use App\Application\Sample\SampleUseCase;
+
+class ServiceProvider
+{
+    public function __construct(private Container $container)
+    {
+    }
+
+    public function register(): void
+    {
+        $this->container->add(ApiController::class)->addArgument(SampleUseCase::class);
+        $this->container->add(SampleUseCase::class);
+    }
+}
+```
+このように、DIコンテナとRouterの、サービスの生成と依存関係の管理を連携して行なっています。
 
 # 終わりに
+今回はPHPでルーティングとDIコンテナを実装してみました。
+なお、今回はルーティングでは`/api/{id}`みたいなパスパラメータは未対応であり、Middlewareやエラーハンドリングなども対応していく必要があります。
+
+今回の実装を通じて、PSRという存在と準拠していたら他のライブラリに差し替えたり、実装の参考にできるということを学ぶことができました。
+
+また、今回実装するにあたって、GitHub Copilotには非常にお世話になりました。
+例えば、`league/Route`みたいな感じでエンドポイントを定義できるようにしたいとか、`leagure/container`のような形で依存を注入できるようにしたいと要望を出したり、
+提案されたコードをさらに改善する際にも大いに役立ちました。
+GitHub Copilotはペアプロ相手として非常に良かったです。
