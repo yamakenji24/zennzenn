@@ -1,5 +1,5 @@
 ---
-title: "FEエンジニアがPHPでRoutingとDiコンテナを触ってみた"
+title: "PHPでRoutingとDiコンテナを1から実装してみる"
 emoji: "🍕"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["PHP", "php8", "フレームワーク", "DIコンテナ"]
